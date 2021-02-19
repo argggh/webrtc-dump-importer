@@ -51,21 +51,21 @@ ice.style['text-align'] = 'center';
         </style>
 
         <script>
-function decompress(baseStats, newStats) {
-  const timestamp = newStats.timestamp
+function decompress(baseStats, newStats, linetime) {
+  const timestamp = typeof newStats.timestamp === 'number'
+    ? newStats.timestamp
+    : Date.parse(newStats.timestamp);
   delete newStats.timestamp;
   Object.keys(newStats).forEach(function(id) {
     if (!baseStats[id]) {
-      if (newStats[id].timestamp === 0) {
-        newStats[id].timestamp = timestamp;
+      if (newStats[id].timestamp === 0 || !newStats[id].timestamp) {
+        newStats[id].timestamp = timestamp || linetime;
       }
       baseStats[id] = newStats[id];
     } else {
       const report = newStats[id];
-      if (report.timestamp === 0) {
-          report.timestamp = timestamp;
-      } else if (!report.timestamp) {
-          report.timestamp = new Date(baseStats[id].timestamp).getTime();
+      if (report.timestamp === 0 || !report.timestamp) {
+          report.timestamp = timestamp || linetime;
       }
       Object.keys(report).forEach(function(name) {
         baseStats[id][name] = report[name];
@@ -125,7 +125,7 @@ function doImport(evt) {
                         baseStats[data[1]] = {};
                     }
                     if (data[0] === 'getstats') { // delta-compressed
-                        data[2] = decompress(baseStats[data[1]], data[2]);
+                        data[2] = decompress(baseStats[data[1]], data[2], time.getTime());
                         baseStats[data[1]] = JSON.parse(JSON.stringify(data[2]));
                     }
                     if (data[0] === 'getStats' || data[0] === 'getstats') {
@@ -475,7 +475,6 @@ function processConnections(connectionIds, data) {
         graphTypes[graphType] = true;
 
         var container = document.createElement('details');
-        container.open = true;
         container.classList.add('webrtc-' + graphType);
         containers[connid].graphs.appendChild(container);
 
@@ -490,13 +489,17 @@ function processConnections(connectionIds, data) {
         container.appendChild(chartContainer);
 
         var da = [];
+        let show = false;
         Object.keys(series[reportname]).forEach(function(name) {
             if (name === 'type') return;
-            da.push({
-                name: name,
-                data: series[reportname][name]
-            });
+            const data = series[reportname][name];
+            // by default, hide series with very large constant values (ssrc etc)
+            const visible = data.length > 0 && (data[0][1] < 1000000 || data.some(x => x[1] !== data[0][1]));
+            da.push({ name, data, visible });
+            // by default, collapse graphs where there's only one data point
+            show = show || (data.length > 0 && data.some(x => x[0] !== data[0][0]));
         });
+        container.open = show;
         var graph = new Highcharts.Chart({
             title: {
                 text: title
