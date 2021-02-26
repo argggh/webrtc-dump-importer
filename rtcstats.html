@@ -57,16 +57,17 @@ function decompress(baseStats, newStats, linetime) {
     : Date.parse(newStats.timestamp);
   delete newStats.timestamp;
   Object.keys(newStats).forEach(function(id) {
+    const report = newStats[id];
+    if (report.timestamp === 0 || !report.timestamp) {
+      report.timestamp = timestamp || linetime;
+    }
+    if (Math.abs(report.timestamp - linetime) > 60 * 60 * 1000) {
+      // If these differ too much, trust the stamp given on the whole line
+      report.timestamp = linetime;
+    }
     if (!baseStats[id]) {
-      if (newStats[id].timestamp === 0 || !newStats[id].timestamp) {
-        newStats[id].timestamp = timestamp || linetime;
-      }
-      baseStats[id] = newStats[id];
+      baseStats[id] = report;
     } else {
-      const report = newStats[id];
-      if (report.timestamp === 0 || !report.timestamp) {
-          report.timestamp = timestamp || linetime;
-      }
       Object.keys(report).forEach(function(name) {
         baseStats[id][name] = report[name];
       });
